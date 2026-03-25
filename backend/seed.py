@@ -46,24 +46,31 @@ def seed_partner(conn, data):
     print(f"✓ Partner seeded: {data['partner_name']}")
 
 def seed_merchants(conn, merchants):
+    from datetime import datetime, timedelta
+    today = datetime.now().date()
     for m in merchants:
+        months = m.get("months_on_platform", 12)
+        join_date = (today - timedelta(days=months * 30)).isoformat()
         conn.execute("""
         INSERT OR REPLACE INTO merchants (
             merchant_id, partner_id, merchant_name, segment,
-            country, city, business_type, months_on_platform,
-            active_listings, customer_rating, avg_txn_size,
-            refund_rate, sales_consistency_score,
-            zero_sales_days_last_90d, avg_monthly_txn_count,
-            gmv_trend_coefficient, peak_season_months
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            country, city, business_type, platform_join_date,
+            active_listings, customer_rating, avg_order_size,
+            refund_rate, zero_sales_days_last_90d,
+            avg_monthly_txn_count, gross_sales_trend,
+            peak_season_months
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             m["merchant_id"], m["partner_id"], m["merchant_name"],
             m["segment"], m["country"], m["city"], m["business_type"],
-            m["months_on_platform"], m.get("active_listings"),
-            m.get("customer_rating"), m.get("avg_txn_size"),
-            m.get("refund_rate"), m.get("sales_consistency_score"),
-            m.get("zero_sales_days_last_90d"), m.get("avg_monthly_txn_count"),
-            m.get("gmv_trend_coefficient"),
+            join_date,
+            m.get("active_listings"),
+            m.get("customer_rating"),
+            m.get("avg_order_size"),
+            m.get("refund_rate"),
+            m.get("zero_sales_days_last_90d"),
+            m.get("avg_monthly_txn_count"),
+            m.get("gross_sales_trend"),
             json.dumps(m.get("peak_season_months", []))
         ))
     print(f"✓ {len(merchants)} merchants seeded.")
@@ -96,10 +103,10 @@ def seed_financings(conn, merchants, partner_id):
             m["total_prior_credits"],
             m["first_credit_date"],
             m["partner_revenue_share"],
-            m["gmv_pre_30d"],
-            m["gmv_pre_90d"],
-            m["gmv_pre_180d"],
-            m["gmv_pre_avg_monthly"]
+            m["gross_sales_pre_30d"],
+            m["gross_sales_pre_90d"],
+            m["gross_sales_pre_180d"],
+            m["gross_sales_pre_avg_monthly"]
         ))
     print(f"✓ {len(merchants)} financings seeded.")
 
@@ -115,12 +122,12 @@ def seed_daily_sales(conn, merchants, partner_id):
     for m in merchants:
         financing_id    = f"FIN-{m['merchant_id']}"
         disbursement    = datetime.strptime(m["disbursement_date"], "%Y-%m-%d").date()
-        base_daily      = m["gmv_pre_avg_monthly"] / 30
-        post_monthly_avg= m["gmv_90d_post"] / 3  # avg monthly post
+        base_daily      = m["gross_sales_pre_avg_monthly"] / 30
+        post_monthly_avg= m["gross_sales_90d_post"] / 3  # avg monthly post
         post_daily_avg  = post_monthly_avg / 30
-        consistency     = m["sales_consistency_score"] / 100
+        consistency     = 0.8  # removed field, using fixed value
         zero_days       = m["zero_sales_days_last_90d"]
-        has_direct      = m["has_direct_gmv"]
+        has_direct      = m["has_direct_gross_sales"]
         repayment_rate  = 0.14
         pace            = m["repayment_pace_ratio"]
 
