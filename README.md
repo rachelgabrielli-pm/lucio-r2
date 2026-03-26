@@ -30,17 +30,17 @@ R2 partners (Uber Eats, Rappi, Clip, inDrive) embed R2's credit product inside t
 
 The problem: **partners have no visibility into what happens after disbursement.**
 
-They don't log into R2's systems. They have no dashboard. They receive no signal about which merchants are thriving, which are struggling, or — most importantly — which merchants in their platform look like the ones that succeeded. The partner's credit program manager is flying blind when deciding where to direct the next wave of credit offers.
+They don't log into R2's systems. They have no dashboard. They receive no signal about which merchants are thriving, which are struggling, or, most importantly, which merchants in their platform look like the ones that succeeded. The partner's credit program manager is flying blind when deciding where to direct the next wave of credit offers.
 
 This creates two compounding losses:
-1. **Revenue left on the table** — partners under-activate their merchant base because they don't know who to target
-2. **Missed retention signal** — R2 can't show partners the ROI (Return on Investment) of the credit program in concrete, actionable terms
+1. **Revenue left on the table** — partners under activate their merchant base because they don't know who to target
+2. **Missed retention signal** — R2 can't show partners the ROI of the credit program in concrete, actionable terms
 
 ### Arturo and Lucio — two agents, one data source, opposite missions
 
-R2 already runs **Arturo**, a collections agent (Artificial Intelligence-powered) that monitors merchants showing risk signals and intervenes before default. Arturo watches the portfolio for trouble and acts early to protect R2's capital.
+R2 already runs **Arturo**, a collections agent that monitors merchants showing risk signals and intervenes before default. Arturo watches the portfolio for trouble and acts early to protect R2's capital.
 
-**Lucio is Arturo's counterpart.** Both agents read from the same merchant signals data source. They are mutually exclusive by design — no merchant can appear in both agents' territory at the same time.
+**Lucio is Arturo's counterpart.** Both agents read from the same merchant signals data source. They are mutually exclusive by design, no merchant can appear in both agents' territory at the same time.
 
 ```
 Same data source — zero overlap
@@ -54,7 +54,7 @@ Lucio:  repayment_pace_ratio ≥ 1.1  →  merchant paying faster than projected
 Neutral: everything else             →  monitored, not yet actionable
 ```
 
-Together, Arturo and Lucio give R2 full coverage of the portfolio: one agent managing risk, one agent driving growth. The partner only ever sees Lucio's output — the good news, the actionable intelligence, the growth signal. Arturo operates silently on R2's side.
+Together, Arturo and Lucio give R2 full coverage of the portfolio: one agent managing risk, one agent driving growth. The partner only ever sees Lucio's output, the good news, the actionable intelligence, the growth signal. Arturo operates silently on R2's side.
 
 ---
 
@@ -67,7 +67,7 @@ Every week, Lucio sends the partner's credit program manager a digest via WhatsA
 3. **What your winners looked like before credit** — the pre-credit ICP (Ideal Customer Profile), expressed as a concrete checklist the partner can use to filter their merchant base
 4. **A call to action** — use this to grow your program
 
-After receiving the digest, the partner can reply on WhatsApp and have a conversation with Lucio — asking for marketing campaign copy, targeting recommendations, or portfolio questions. Lucio responds in real time using the digest as context, without needing to re-query the database.
+After receiving the digest, the partner can reply on WhatsApp and have a conversation with Lucio, asking for marketing campaign copy, targeting recommendations, or portfolio questions. Lucio responds in real time using the digest as context, without needing to re-query the database.
 
 ### Agent architecture — single agent, sequential steps
 
@@ -136,15 +136,15 @@ Streamlit UI (Streamlit Cloud)
 
 ### Key architecture decisions
 
-**Backend pre-computes, Lucio reasons.** Weekly KPIs (Key Performance Indicators) — gross sales, consistency, approval rate — are calculated by the backend from raw data. The LLM (Large Language Model) never sees raw SQL (Structured Query Language) — it receives structured, pre-aggregated signals. This reduces token usage, improves accuracy, and keeps the AI focused on reasoning rather than arithmetic.
+**Backend pre-computes, Lucio reasons.** Weekly KPIs (Key Performance Indicators) (gross sales, consistency, approval rate) are calculated by the backend from raw data. The LLM never sees raw SQL, it receives structured, pre-aggregated signals. This reduces token usage, improves accuracy, and keeps the AI focused on reasoning rather than arithmetic.
 
 **Slim merchant context.** With 136 merchants in the dataset, passing all merchant data to the LLM would exceed rate limits. Lucio receives only the top 40 merchants by repayment pace ratio, with only the fields relevant to classification and ICP building.
 
-**Extended thinking for classification.** Steps 1 and 2 use Claude's extended thinking mode (`budget_tokens: 3000–4000`). The chain of thought is logged and visible in the Streamlit UI — making Lucio's decisions auditable and debuggable.
+**Extended thinking for classification.** Steps 1 and 2 use Claude's extended thinking mode (`budget_tokens: 3000–4000`). The chain of thought is logged and visible in the Streamlit UI, making Lucio's decisions auditable and debuggable.
 
 **No MCP (Model Context Protocol) for V0.** The digest already contains the context Lucio needs to answer follow-up questions. MCP would only be needed for free-form queries requiring new data lookups at conversation time (V1+ roadmap). For V0, context-in-prompt is sufficient and faster to ship.
 
-**WhatsApp over dashboard.** Partners don't log into R2's systems. They live in WhatsApp. Lucio finds them where they already are — mirroring the delivery model R2 uses for Rita on the merchant side.
+**WhatsApp over dashboard.** Partners don't log into R2's systems. They live in WhatsApp. Lucio finds them where they already are, mirroring the delivery model R2 uses for Rita on the merchant side.
 
 ---
 
@@ -182,20 +182,20 @@ Streamlit UI (Streamlit Cloud)
 | Single partner → configurable | Partner ID already parameterized throughout |
 
 **Evaluation before V1 launch:**
-- Human review of 20 consecutive digests before sending to any partner — checking for numeric accuracy and hallucinations
-- A/B test (A/B being two variants tested simultaneously): split partners into two groups. Group A receives the Lucio weekly digest. Group B continues with no change to their current experience. After 8 weeks, compare whether Group A's credit program managers started targeting more merchants, and whether their approval rates and revenue share grew relative to Group B. This tells us whether Lucio is actually changing partner behavior — not just being read and forgotten.
+- Human review of 20 consecutive digests before sending to any partner, checking for numeric accuracy and hallucinations
+- A/B test (A/B being two variants tested simultaneously): split partners into two groups. Group A receives the Lucio weekly digest. Group B continues with no change to their current experience. After 8 weeks, compare whether Group A's credit program managers started targeting more merchants, and whether their approval rates and revenue share grew relative to Group B. This tells us whether Lucio is actually changing partner behavior, not just being read and forgotten.
 - Hallucination audit: compare every numeric claim in digest to backend values
 
 ### V1 → V2: ICP engine + lookalike recommendations
 
-- Build a scoring model: given the pre-credit ICP, score every merchant in the partner's platform — including ones that have never applied for credit
-- Surface the top candidates in the digest: "Here are 20 merchants already on your platform who match the exact profile of your top performers before credit — they have not applied yet, but they should. Use this list for your next targeted campaign."
+- Build a scoring model: given the pre-credit ICP, score every merchant in the partner's platform, including ones that have never applied for credit
+- Surface the top candidates in the digest: "Here are 20 merchants already on your platform who match the exact profile of your top performers before credit, they have not applied yet, but they should. Use this list for your next targeted campaign."
 - MCP integration so Lucio can query the backend dynamically during conversation
 
 ### V2 → V3: Partner shares full merchant base
 
 - Partner pushes their entire merchant roster to R2
-- R2 scores all merchants proactively — not just those who applied
+- R2 scores all merchants proactively, not just those who applied
 - Lucio shifts from reactive (here's what happened) to proactive (here's who to target next week)
 
 ### Observability requirements for production
@@ -230,7 +230,7 @@ Streamlit UI (Streamlit Cloud)
 
 The most important leading indicator is the simplest: **does the partner's credit program manager reply to the digest?**
 
-A reply means they read it, found it useful, and want to go deeper. That is the signal that Lucio is creating real value — not just sending a report no one reads.
+A reply means they read it, found it useful, and want to go deeper. That is the signal that Lucio is creating real value, not just sending a report no one reads.
 
 ---
 
