@@ -5,15 +5,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Support both local .env and Streamlit Cloud secrets
 import os
-try:
-    import streamlit as st
-    api_key = st.secrets.get("ANTHROPIC_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
-except Exception:
-    api_key = os.getenv("ANTHROPIC_API_KEY")
 
-client = Anthropic(api_key=api_key)
+def get_api_key():
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets") and "ANTHROPIC_API_KEY" in st.secrets:
+            return st.secrets["ANTHROPIC_API_KEY"]
+    except Exception:
+        pass
+    return os.getenv("ANTHROPIC_API_KEY")
+
+client = Anthropic(api_key=get_api_key())
 
 def load_data(filepath="data/merchants.json"):
     with open(filepath, "r") as f:
