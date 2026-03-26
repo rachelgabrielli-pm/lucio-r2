@@ -175,6 +175,24 @@ ARTURO TERRITORY (top 5): [id - name]
         "Using neutral merchants with positive uplift as ICP proxy."
     )
 
+    # Build ICP data separately to avoid f-string dict issues
+    icp_data = json.dumps([{
+        "merchant_id":               m["merchant_id"],
+        "merchant_name":             m["merchant_name"],
+        "segment":                   m["segment"],
+        "country":                   m["country"],
+        "gross_sales_pre_avg_monthly": m.get("gross_sales_pre_avg_monthly", 0),
+        "gross_sales_trend":         m.get("gross_sales_trend", 0),
+        "avg_order_size":            m.get("avg_order_size", 0),
+        "refund_rate":               m.get("refund_rate", 0),
+        "customer_rating":           m.get("customer_rating", 0),
+        "active_listings":           m.get("active_listings", 0),
+        "avg_monthly_txn_count":     m.get("avg_monthly_txn_count", 0),
+        "zero_sales_days_last_90d":  m.get("zero_sales_days_last_90d", 0),
+        "disbursement_date":         m.get("disbursement_date", ""),
+        "gross_sales_uplift_pct":    m.get("gross_sales_uplift_pct", 0),
+    } for m in icp_source[:15]], indent=2)
+
     step2 = context + f"""
 STEP 1 RESULTS:
 {classification_text}
@@ -183,22 +201,7 @@ TASK - STEP 2: BUILD THE PRE-CREDIT ICP PROFILE
 {fallback_note}
 
 Using these merchants as ICP source:
-{json.dumps([{{
-    "merchant_id": m["merchant_id"],
-    "merchant_name": m["merchant_name"],
-    "segment": m["segment"],
-    "country": m["country"],
-    "gross_sales_pre_avg_monthly": m.get("gross_sales_pre_avg_monthly", 0),
-    "gross_sales_trend": m.get("gross_sales_trend", 0),
-    "avg_order_size": m.get("avg_order_size", 0),
-    "refund_rate": m.get("refund_rate", 0),
-    "customer_rating": m.get("customer_rating", 0),
-    "active_listings": m.get("active_listings", 0),
-    "avg_monthly_txn_count": m.get("avg_monthly_txn_count", 0),
-    "zero_sales_days_last_90d": m.get("zero_sales_days_last_90d", 0),
-    "disbursement_date": m.get("disbursement_date", ""),
-    "gross_sales_uplift_pct": m.get("gross_sales_uplift_pct", 0),
-}} for m in icp_source[:15]], indent=2)}
+{icp_data}
 
 Extract what these merchants looked like BEFORE credit.
 Give concrete thresholds for each field.

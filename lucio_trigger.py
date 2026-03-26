@@ -87,6 +87,8 @@ def run_lucio_and_send():
             body=chunk
         )
         print(f"  Message {i+1}/{len(chunks)} sent: {msg.sid}")
+        if i < len(chunks) - 1:
+            import time; time.sleep(3)
 
     print(f"\nDigest sent to {to_number} via WhatsApp.")
     print("Reply to start a conversation with Lucio.")
