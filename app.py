@@ -141,12 +141,59 @@ st.markdown(f'<div class="lh"><div><h1>Lucio <em>Partner Intelligence</em></h1><
 st.markdown(f'<div class="kr"><div class="kc a"><div class="kl">Revenue share</div><div class="kv">${kpis["total_revenue_share_usd"]:,.0f}</div><div class="kn">from {n} merchants</div></div><div class="kc"><div class="kl">Approval rate</div><div class="kv">{kpis["approval_rate_pct"]}%</div><div class="kn">{kpis["total_approved"]} of {kpis["total_applications"]}</div></div><div class="kc"><div class="kl">Weekly gross sales</div><div class="kv">${kpis["weekly_gross_sales_usd"]:,.0f}</div><div class="kn">{kpis["merchants_selling_this_week"]} selling</div></div><div class="kc"><div class="kl">Top performers</div><div class="kv">{tc}</div><div class="kn">thriving post-credit</div></div><div class="kc"><div class="kl">Sales uplift</div><div class="kv">+{dpct:.0f}%</div><div class="kn">top performers vs pre-credit</div></div></div>',unsafe_allow_html=True)
 st.markdown(f'<div class="ps"><div class="psl">Portfolio<br>partition</div><div class="pst"><div class="pn ar">{ac}</div><div class="pd">Arturo</div></div><div style="flex:2"><div class="pt"><div class="pta" style="flex:{ap}"></div><div class="ptn" style="flex:{np_}"></div><div class="ptl" style="flex:{lp}"></div></div></div><div class="pst"><div class="pn lu">{tc}</div><div class="pd">Lucio top</div></div><div class="pr">Same source &middot; Zero overlap<br>Arturo protects &middot; Lucio grows</div></div>',unsafe_allow_html=True)
 
-if st.button("RUN LUCIO - Generate Weekly Digest",type="primary"):
+# WhatsApp number input
+whatsapp_col, btn_col = st.columns([1.5, 1], gap="small")
+with whatsapp_col:
+    whatsapp_to = st.text_input(
+        "Send digest to WhatsApp number",
+        placeholder="+5521999999999",
+        help="Include country code. The weekly digest will be sent to this number via WhatsApp."
+    )
+with btn_col:
+    st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+    run_clicked = st.button("RUN LUCIO - Generate Weekly Digest", type="primary")
+
+if run_clicked:
+    if not whatsapp_to:
+        st.warning("Please enter a WhatsApp number to receive the digest.")
+        st.stop()
     with st.spinner("Analyzing (~45 seconds)..."):
-        result=run_lucio(build_input(snapshot,md,weekly))
-        result["api_payload"]=build_payload(snapshot,md,result)
-        st.session_state["chat"]=[{"role":"assistant","content":result["brief"]}]
-    st.session_state["result"]=result; st.rerun()
+        result = run_lucio(build_input(snapshot, md, weekly))
+        result["api_payload"] = build_payload(snapshot, md, result)
+        # Send via WhatsApp
+        try:
+            import os, re
+            from twilio.rest import Client as TwilioClient
+            try:
+                import streamlit as _st
+                sid   = _st.secrets.get("TWILIO_ACCOUNT_SID") or os.getenv("TWILIO_ACCOUNT_SID")
+                token = _st.secrets.get("TWILIO_AUTH_TOKEN")  or os.getenv("TWILIO_AUTH_TOKEN")
+                frm   = _st.secrets.get("TWILIO_WHATSAPP_FROM") or os.getenv("TWILIO_WHATSAPP_FROM")
+            except Exception:
+                sid   = os.getenv("TWILIO_ACCOUNT_SID")
+                token = os.getenv("TWILIO_AUTH_TOKEN")
+                frm   = os.getenv("TWILIO_WHATSAPP_FROM")
+            to_num = whatsapp_to if whatsapp_to.startswith("whatsapp:") else f"whatsapp:{whatsapp_to}"
+            twilio = TwilioClient(sid, token)
+            digest = result["brief"]
+            sentences = re.split(r"(?<=[.!?\n]) +", digest)
+            chunks, current = [], ""
+            for s in sentences:
+                if len(current) + len(s) < 1400:
+                    current += (" " if current else "") + s
+                else:
+                    if current: chunks.append(current)
+                    current = s
+            if current: chunks.append(current)
+            for chunk in chunks:
+                twilio.messages.create(from_=frm, to=to_num, body=chunk)
+            st.success(f"Digest sent to {whatsapp_to} via WhatsApp!")
+        except Exception as e:
+            st.warning(f"WhatsApp not configured: {e}")
+        result["whatsapp_to"] = whatsapp_to
+        st.session_state["chat"] = [{"role": "assistant", "content": result["brief"]}]
+    st.session_state["result"] = result
+    st.rerun()
 
 if "result" not in st.session_state:
     st.markdown("<div style='text-align:center;padding:40px 0;color:#C5C0B8;font-size:12px;'>Press RUN LUCIO to generate the weekly digest</div>",unsafe_allow_html=True); st.stop()
