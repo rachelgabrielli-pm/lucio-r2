@@ -5,7 +5,7 @@ from datetime import datetime
 from agent import run_lucio
 from anthropic import Anthropic
 
-API_BASE   = "http://localhost:8000"
+API_BASE   = "https://lucio-r2-production.up.railway.app"
 PARTNER_ID = 1001
 client     = Anthropic()
 
