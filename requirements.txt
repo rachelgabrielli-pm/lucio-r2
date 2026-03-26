@@ -1,0 +1,8 @@
+anthropic
+streamlit
+fastapi
+uvicorn
+python-dotenv
+twilio
+flask
+requests
