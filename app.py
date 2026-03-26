@@ -164,7 +164,6 @@ st.markdown(f"""
 
 
 # ── INPUT CARD ────────────────────────────────────────────────────────────────
-st.markdown('<div class="input-card">', unsafe_allow_html=True)
 st.markdown('<div class="input-label">Partner WhatsApp number</div>', unsafe_allow_html=True)
 
 col_input, col_btn = st.columns([2, 1], gap="medium")
@@ -181,7 +180,6 @@ with col_btn:
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
     run_clicked = st.button("RUN LUCIO", type="primary")
 
-st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ── RUN ───────────────────────────────────────────────────────────────────────
