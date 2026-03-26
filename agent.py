@@ -20,103 +20,88 @@ def run_lucio(data: dict) -> dict:
     total_rev_share = sum(m["partner_revenue_share"] for m in merchants)
     active_count    = sum(1 for m in merchants if m["financing_status"] == "ACTIVE")
 
-    context = f"""
-You are Lucio, a partner intelligence agent built by R2 — a revenue-based
-financing company operating across Latin America.
+    # Weekly signals from backend
+    weekly         = data.get("weekly_signals", {})
+    weekly_sales   = weekly.get("weekly_gross_sales_usd", 0)
+    weekly_consist = weekly.get("weekly_consistency_pct", 0)
+    week_start     = weekly.get("week_start", "")
+    week_end       = weekly.get("week_end", "")
+    merchants_selling = weekly.get("merchants_selling_this_week", active_count)
 
-R2 already runs Arturo, a collections agent that monitors merchants showing
-risk signals (repayment_pace_ratio < 0.8 or repayment_consistency = low)
-and intervenes before default. Arturo owns that segment entirely.
+    # Calculate avg uplift of top performers
+    top_performers = [m for m in merchants
+                      if m.get("repayment_pace_ratio", 0) >= 1.1
+                      and m.get("financing_status") in ["ACTIVE", "PAID"]
+                      and m.get("gross_sales_uplift_pct", 0) >= 25]
+    avg_uplift = round(
+        sum(m.get("gross_sales_uplift_pct", 0) for m in top_performers) / len(top_performers), 1
+    ) if top_performers else 0
 
-Your role is the opposite. You operate EXCLUSIVELY on merchants that are
-healthy and thriving — those Arturo has no reason to touch. Your filter:
-  - repayment_pace_ratio >= 1.1  (paying faster than projected)
-  - repayment_consistency = high
-  - financing_status in [ACTIVE, PAID]
+    # Weekly revenue share = new loans disbursed this week * rev_share_rate
+    # The partner earns rev share at disbursement time, not from daily repayments
+    from datetime import datetime, timedelta
+    week_start_date = (datetime.now().date() - timedelta(days=7)).isoformat()
+    weekly_rev = sum(
+        m.get("partner_revenue_share", 0) for m in merchants
+        if m.get("disbursement_date", "") >= week_start_date
+    )
 
-Your job: analyze thriving merchants, identify what makes them succeed
-BEFORE they took credit (pre-credit profile), and produce a concise
-weekly digest for the partner's credit program manager.
+    from datetime import datetime
+    week = datetime.now().strftime("%B %d, %Y")
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PARTNER CONTEXT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Partner: {partner_name} (ID: {partner_id})
-Revenue share rate: {rev_share_rate * 100:.1f}% of each loan amount
-Total revenue share earned: ${total_rev_share:,.2f}
-Active financing relationships: {active_count}
+    context = (
+        "You are Lucio, a partner intelligence agent built by R2 - a revenue-based "
+        "financing company operating across Latin America.\n\n"
+        "R2 already runs Arturo, a collections agent that monitors merchants showing "
+        "risk signals (repayment_pace_ratio < 0.8) and intervenes before default. "
+        "Arturo owns that segment entirely.\n\n"
+        "Your role is the opposite. You operate EXCLUSIVELY on merchants that are "
+        "healthy and thriving. Your filter:\n"
+        "  - repayment_pace_ratio >= 1.1\n"
+        "  - financing_status in [ACTIVE, PAID]\n\n"
+        f"PARTNER: {partner_name} (ID: {partner_id})\n"
+        f"Revenue share rate: {rev_share_rate * 100:.1f}%\n"
+        f"Total revenue share earned: ${total_rev_share:,.2f}\n"
+        f"Active relationships: {active_count}\n\n"
+        f"FUNNEL (last 90 days):\n"
+        f"Total applications: {funnel['total_applications']}\n"
+        f"Approved: {funnel['total_approved']} ({funnel['approval_rate_pct']}%)\n"
+        f"Denied: {funnel['total_denied']}\n"
+        f"Top denial reasons: {json.dumps(funnel['top_denial_reasons'], indent=2)}\n\n"
+        f"MERCHANT PORTFOLIO:\n"
+        f"{json.dumps(merchants, indent=2)}\n\n"
+        "FIELD DEFINITIONS:\n"
+        "gross_sales_pre_avg_monthly - avg monthly sales BEFORE credit\n"
+        "gross_sales_90d_post - total sales in first 90 days AFTER disbursement\n"
+        "gross_sales_uplift_pct - % change post vs pre credit\n"
+        "gross_sales_trend - slope of monthly sales trend before credit (positive = growing)\n"
+        "avg_order_size - average ticket per order\n"
+        "repayment_pace_ratio - actual speed / projected speed (>1.1 = thriving, <0.8 = Arturo)\n"
+        "refund_rate - % of orders refunded (>5% is a warning sign)\n"
+        "total_prior_credits - fully repaid R2 loans before this one\n"
+        "zero_sales_days_last_90d - days with no sales pre-credit\n"
+        "avg_monthly_txn_count - number of orders per month\n"
+        "financing_status - ACTIVE, PAID, PAUSED\n"
+    )
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FUNNEL DATA — last 90 days
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Total applications:  {funnel['total_applications']}
-Approved:            {funnel['total_approved']} ({funnel['approval_rate_pct']}%)
-Denied:              {funnel['total_denied']}
-Top denial reasons:
-{json.dumps(funnel['top_denial_reasons'], indent=2)}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-MERCHANT PORTFOLIO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{json.dumps(merchants, indent=2)}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FIELD DEFINITIONS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-gross_sales_pre_avg_monthly  — avg monthly sales BEFORE credit (historical baseline)
-gross_sales_90d_post         — total sales in first 90 days AFTER disbursement
-gross_sales_uplift_pct_vs_avg — % change: post-credit monthly avg vs pre-credit avg
-gross_sales_trend            — slope of monthly sales trend before credit
-                               positive = already growing, negative = declining
-avg_order_size               — average ticket per order on the platform
-repayment_pace_ratio         — actual repayment speed / projected speed
-                               > 1.2 = paying much faster (merchant thriving)
-                               1.0   = exactly on track
-                               < 0.8 = paying slower (Arturo territory)
-repayment_consistency        — regularity of daily repayment (high/medium/low)
-refund_rate                  — % of orders refunded (>5% is a warning sign)
-has_direct_gross_sales       — true = exact sales data from partner
-                               false = estimated from repayment amount
-total_prior_credits          — fully repaid R2 loans before this one
-is_first_credit              — is this their first loan with R2?
-active_listings              — number of menu/product items on platform
-zero_sales_days_last_90d     — days with no sales in 90d window pre-credit
-avg_monthly_txn_count        — number of orders per month
-financing_status             — ACTIVE, PAID, PAUSED
-"""
-
-    # ── STEP 1: Classify merchants ────────────────────────────
-    step1 = f"""
-{context}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TASK — STEP 1: CLASSIFY EVERY MERCHANT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # STEP 1 - Classify merchants
+    step1 = context + """
+TASK - STEP 1: CLASSIFY EVERY MERCHANT
 Go through every merchant one by one.
 
-First check Arturo's territory:
-  repayment_pace_ratio < 0.8 OR repayment_consistency = low
-  OR financing_status = PAUSED → mark ARTURO TERRITORY, skip.
+Arturo territory: repayment_pace_ratio < 0.8 OR financing_status = PAUSED
+Top Performer (ALL must be true):
+  - gross_sales_uplift_pct >= 25%
+  - repayment_pace_ratio >= 1.1
+  - financing_status in [ACTIVE, PAID]
+Neutral: healthy but not standout
 
-For the rest classify as:
+For each merchant state classification, exact numbers, and one standout signal.
 
-  TOP PERFORMER — all must be true:
-    · gross_sales_uplift_pct_vs_avg >= 25%
-    · repayment_pace_ratio >= 1.1
-    · repayment_consistency = high
-    · financing_status in [ACTIVE, PAID]
-
-  NEUTRAL — healthy but not a standout
-
-For each merchant state:
-  1. Classification and why
-  2. The exact numbers that drove the decision
-  3. One standout signal if any
-
-End with a clean summary list:
-  TOP PERFORMERS: [merchant_id — name]
-  NEUTRAL: [merchant_id — name]
-  ARTURO TERRITORY: [merchant_id — name]
+End with summary:
+TOP PERFORMERS: [id - name]
+NEUTRAL: [id - name]
+ARTURO TERRITORY: [id - name]
 """
 
     r1 = client.messages.create(
@@ -134,203 +119,28 @@ End with a clean summary list:
         elif block.type == "text":
             classification_text = block.text
 
-    # ── STEP 2: Build pre-credit ICP ─────────────────────────
-    step2 = f"""
-{context}
-
+    # STEP 2 - Build pre-credit ICP
+    step2 = context + f"""
 STEP 1 RESULTS:
 {classification_text}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TASK — STEP 2: BUILD THE PRE-CREDIT ICP PROFILE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Using ONLY the TOP PERFORMERS from Step 1, extract the profile
-these merchants had BEFORE they ever took a loan with R2.
+TASK - STEP 2: BUILD THE PRE-CREDIT ICP PROFILE
+Using ONLY TOP PERFORMERS from Step 1, extract what these merchants
+looked like BEFORE they ever took a loan with R2.
 
-This is critical: the partner needs to find MORE merchants that
-look like this BEFORE credit — not after. The goal is to identify
-the operational signals that predict success with financing.
+This is critical: the partner needs to find merchants that look like
+this BEFORE credit. Use ONLY pre-credit fields:
+- gross_sales_pre_avg_monthly, gross_sales_trend
+- platform_join_date, active_listings
+- avg_order_size, refund_rate
+- zero_sales_days_last_90d, avg_monthly_txn_count
+- customer_rating, segment, business_type, country
+- total_prior_credits
 
-Analyze using PRE-CREDIT fields only:
-  - gross_sales_pre_avg_monthly, gross_sales_pre_90d, gross_sales_pre_180d
-  - gross_sales_trend (was it already growing?)
-  - platform_join_date / months_
-cat > agent.py << 'EOF'
-import json
-import os
-from anthropic import Anthropic
-from dotenv import load_dotenv
+For each dimension give thresholds that separate top from rest.
 
-load_dotenv()
-client = Anthropic()
-
-def load_data(filepath="data/merchants.json"):
-    with open(filepath, "r") as f:
-        return json.load(f)
-
-def run_lucio(data: dict) -> dict:
-    partner_name   = data["partner_name"]
-    partner_id     = data["partner_id"]
-    rev_share_rate = data["rev_share_rate"]
-    funnel         = data["funnel"]
-    merchants      = data["merchants"]
-
-    total_rev_share = sum(m["partner_revenue_share"] for m in merchants)
-    active_count    = sum(1 for m in merchants if m["financing_status"] == "ACTIVE")
-
-    context = f"""
-You are Lucio, a partner intelligence agent built by R2 — a revenue-based
-financing company operating across Latin America.
-
-R2 already runs Arturo, a collections agent that monitors merchants showing
-risk signals (repayment_pace_ratio < 0.8 or repayment_consistency = low)
-and intervenes before default. Arturo owns that segment entirely.
-
-Your role is the opposite. You operate EXCLUSIVELY on merchants that are
-healthy and thriving — those Arturo has no reason to touch. Your filter:
-  - repayment_pace_ratio >= 1.1  (paying faster than projected)
-  - repayment_consistency = high
-  - financing_status in [ACTIVE, PAID]
-
-Your job: analyze thriving merchants, identify what makes them succeed
-BEFORE they took credit (pre-credit profile), and produce a concise
-weekly digest for the partner's credit program manager.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PARTNER CONTEXT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Partner: {partner_name} (ID: {partner_id})
-Revenue share rate: {rev_share_rate * 100:.1f}% of each loan amount
-Total revenue share earned: ${total_rev_share:,.2f}
-Active financing relationships: {active_count}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FUNNEL DATA — last 90 days
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Total applications:  {funnel['total_applications']}
-Approved:            {funnel['total_approved']} ({funnel['approval_rate_pct']}%)
-Denied:              {funnel['total_denied']}
-Top denial reasons:
-{json.dumps(funnel['top_denial_reasons'], indent=2)}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-MERCHANT PORTFOLIO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{json.dumps(merchants, indent=2)}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FIELD DEFINITIONS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-gross_sales_pre_avg_monthly  — avg monthly sales BEFORE credit (historical baseline)
-gross_sales_90d_post         — total sales in first 90 days AFTER disbursement
-gross_sales_uplift_pct_vs_avg — % change: post-credit monthly avg vs pre-credit avg
-gross_sales_trend            — slope of monthly sales trend before credit
-                               positive = already growing, negative = declining
-avg_order_size               — average ticket per order on the platform
-repayment_pace_ratio         — actual repayment speed / projected speed
-                               > 1.2 = paying much faster (merchant thriving)
-                               1.0   = exactly on track
-                               < 0.8 = paying slower (Arturo territory)
-repayment_consistency        — regularity of daily repayment (high/medium/low)
-refund_rate                  — % of orders refunded (>5% is a warning sign)
-has_direct_gross_sales       — true = exact sales data from partner
-                               false = estimated from repayment amount
-total_prior_credits          — fully repaid R2 loans before this one
-is_first_credit              — is this their first loan with R2?
-active_listings              — number of menu/product items on platform
-zero_sales_days_last_90d     — days with no sales in 90d window pre-credit
-avg_monthly_txn_count        — number of orders per month
-financing_status             — ACTIVE, PAID, PAUSED
-"""
-
-    # ── STEP 1: Classify merchants ────────────────────────────
-    step1 = f"""
-{context}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TASK — STEP 1: CLASSIFY EVERY MERCHANT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Go through every merchant one by one.
-
-First check Arturo's territory:
-  repayment_pace_ratio < 0.8 OR repayment_consistency = low
-  OR financing_status = PAUSED → mark ARTURO TERRITORY, skip.
-
-For the rest classify as:
-
-  TOP PERFORMER — all must be true:
-    · gross_sales_uplift_pct_vs_avg >= 25%
-    · repayment_pace_ratio >= 1.1
-    · repayment_consistency = high
-    · financing_status in [ACTIVE, PAID]
-
-  NEUTRAL — healthy but not a standout
-
-For each merchant state:
-  1. Classification and why
-  2. The exact numbers that drove the decision
-  3. One standout signal if any
-
-End with a clean summary list:
-  TOP PERFORMERS: [merchant_id — name]
-  NEUTRAL: [merchant_id — name]
-  ARTURO TERRITORY: [merchant_id — name]
-"""
-
-    r1 = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=8000,
-        thinking={"type": "enabled", "budget_tokens": 5000},
-        messages=[{"role": "user", "content": step1}]
-    )
-
-    classification_thinking = ""
-    classification_text = ""
-    for block in r1.content:
-        if block.type == "thinking":
-            classification_thinking = block.thinking
-        elif block.type == "text":
-            classification_text = block.text
-
-    # ── STEP 2: Build pre-credit ICP ─────────────────────────
-    step2 = f"""
-{context}
-
-STEP 1 RESULTS:
-{classification_text}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TASK — STEP 2: BUILD THE PRE-CREDIT ICP PROFILE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Using ONLY the TOP PERFORMERS from Step 1, extract the profile
-these merchants had BEFORE they ever took a loan with R2.
-
-This is critical: the partner needs to find MORE merchants that
-look like this BEFORE credit — not after. The goal is to identify
-the operational signals that predict success with financing.
-
-Analyze using PRE-CREDIT fields only:
-  - gross_sales_pre_avg_monthly, gross_sales_pre_90d, gross_sales_pre_180d
-  - gross_sales_trend (was it already growing?)
-  - platform_join_date / months_on_platform
-  - active_listings
-  - avg_order_size
-  - refund_rate
-  - zero_sales_days_last_90d
-  - avg_monthly_txn_count
-  - customer_rating
-  - segment, business_type, country
-  - total_prior_credits (had they borrowed before?)
-
-For each dimension give:
-  - What top performers had in common BEFORE credit
-  - The specific threshold that separates them from neutral/underperforming
-  - How this differs from merchants that are NOT top performers
-
-End with a SUMMARY ICP in plain language:
+End with:
 "Before taking their first R2 loan, your top performers looked like this: [description]"
-
-This summary will be used directly in the partner digest.
 """
 
     r2 = client.messages.create(
@@ -348,73 +158,68 @@ This summary will be used directly in the partner digest.
         elif block.type == "text":
             icp_text = block.text
 
-    # ── STEP 3: Write the weekly digest ──────────────────────
-    step3 = f"""
-{context}
-
+    # STEP 3 - Write the weekly digest
+    step3 = context + f"""
 STEP 1 RESULTS:
 {classification_text}
 
 STEP 2 PRE-CREDIT ICP:
 {icp_text}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TASK — STEP 3: WRITE THE WEEKLY DIGEST
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Write the weekly digest Lucio sends to {partner_name}'s credit
-program manager. This person works in marketing or partnerships —
-not a data analyst. The digest must be concise, direct, and
-motivate one clear action.
+TASK - STEP 3: WRITE THE WEEKLY DIGEST
+Write the weekly digest Lucio sends to {partner_name} credit program manager.
+This person works in marketing or partnerships - not a data analyst.
+Keep it concise - this will be sent via WhatsApp.
 
-FALLBACK RULE: If there are fewer than 3 top performers this week,
-do NOT say "it was a slow week." Instead use the section:
-"Your best performers so far look like this — find more like them"
-and show the historical ICP profile.
+FALLBACK RULE: If fewer than 3 top performers this week, skip the
+"THIS WEEK'S TOP PERFORMERS" section entirely and write instead:
+"Your top performers so far had an average sales increase of {avg_uplift}% -
+here is what they looked like:" then go directly to WHAT YOUR WINNERS LOOKED LIKE BEFORE CREDIT.
 
-Follow this exact structure:
+WEEKLY DATA TO USE (this week only):
+- Gross sales this week: ${weekly_sales:,.2f}
+- Merchants selling this week: {merchants_selling}
+- Sales consistency: {weekly_consist}%
+- Approval rate: {funnel['approval_rate_pct']}%
+- Revenue share earned this week: ${weekly_rev:,.2f}
+- Active financing relationships: {active_count}
+
+Follow this structure EXACTLY:
 
 ---
-LUCIO WEEKLY DIGEST — {partner_name}
-Week of {__import__('datetime').datetime.now().strftime('%B %d, %Y')}
+Hey {partner_name} team! Here is your R2 program performance summary for the week of {week}.
 
-📊 YOUR PROGRAM THIS WEEK
-- Approval rate: {funnel['approval_rate_pct']}% of credit requests approved
-- Total revenue share earned: ${total_rev_share:,.2f}
-- Active financing relationships: {active_count} merchants
-- [Weekly gross sales: use the sum of gross_sales_90d_post/3 for active merchants as proxy]
-- [Weekly sales consistency: % of top performers with repayment_consistency = high]
+YOUR PROGRAM THIS WEEK
+- Gross sales across active merchants: $[use weekly_sales]
+- Sales consistency: [use weekly_consist]% of merchants sold every day this week
+- Credit approval rate: [use approval_rate_pct]% of applications approved
+- Active financing relationships: [use active_count] merchants
+- Revenue share earned this week: $[use weekly_rev]
 
-🌟 THIS WEEK'S TOP PERFORMERS
+THIS WEEK'S TOP PERFORMERS
 [List top 3-5 performers. For each:
   - Name, segment, city
-  - Gross sales uplift % vs their pre-credit average
-  - Repayment pace ratio — paying Xx faster than projected
+  - Gross sales uplift % vs pre-credit average
+  - Repayment pace: paying Xx faster than projected
   - One human sentence on what makes them stand out]
 
-[IF fewer than 3 top performers use fallback:]
-YOUR BEST PERFORMERS SO FAR LOOK LIKE THIS — FIND MORE LIKE THEM
-[Show historical top performers with same format]
+Your top performers had an average sales increase of {avg_uplift}% compared to their pre-credit baseline.
 
-🧬 WHAT YOUR WINNERS LOOKED LIKE BEFORE CREDIT
-[4-5 bullet points from the PRE-CREDIT ICP — concrete and specific.
-Numbers only. "14+ months on platform" not "established merchants".
-Make it a checklist a marketing manager can use to filter merchants.]
+WHAT YOUR WINNERS LOOKED LIKE BEFORE CREDIT
+[4-5 bullet points from PRE-CREDIT ICP only. Concrete numbers. A checklist the partner can use to filter merchants.]
 
-💡 USE THIS TO GROW YOUR PROGRAM
-Target your credit offers to merchants hitting these operational
-benchmarks — they're the ones already demonstrating the cashflow
-consistency and growth trajectory that predicts success with
-financing. Dark kitchens meeting these criteria should be your
-first priority, followed by established restaurants with 15+ months
-tenure. Skip merchants with recent inconsistent sales patterns or
-ratings below 4.5 stars.
+USE THIS TO GROW YOUR PROGRAM
+Target your credit offers to merchants hitting these operational benchmarks - they are already
+demonstrating the cashflow consistency and growth trajectory that predicts success with financing.
+Dark kitchens meeting these criteria should be your first priority, followed by established
+restaurants with 15+ months tenure. Skip merchants with inconsistent sales patterns or ratings
+below 4.5 stars.
 
-Ready to identify these merchants in your platform?
-Reach out to your R2 account manager.
+How can I help you dig deeper into this data and identify the best opportunities to boost your revenue?
 ---
 
-Tone: professional but warm. Written for a marketing/partnerships
-person — not a data analyst. In English. Output ONLY the digest.
+Tone: professional but warm. Conversational. For a marketing manager not a data analyst.
+In English. Output ONLY the digest text, nothing else.
 """
 
     r3 = client.messages.create(
@@ -439,19 +244,11 @@ person — not a data analyst. In English. Output ONLY the digest.
 
 
 if __name__ == "__main__":
-    print("Loading merchant data...")
+    print("Loading data...")
     data = load_data()
     print(f"Running Lucio for {data['partner_name']}...")
-    print("Calling Claude API 3 times (~45 seconds)\n")
     result = run_lucio(data)
-    SEP = "═" * 60
-    print(f"\n{SEP}\nSTEP 1 — CHAIN OF THOUGHT\n{SEP}")
-    print(result["classification_thinking"])
-    print(f"\n{SEP}\nSTEP 1 — CLASSIFICATION\n{SEP}")
-    print(result["classification_text"])
-    print(f"\n{SEP}\nSTEP 2 — ICP REASONING\n{SEP}")
-    print(result["icp_thinking"])
-    print(f"\n{SEP}\nSTEP 2 — PRE-CREDIT ICP\n{SEP}")
-    print(result["icp_text"])
-    print(f"\n{SEP}\nSTEP 3 — WEEKLY DIGEST\n{SEP}")
+    print("\n" + "="*60)
+    print("DIGEST")
+    print("="*60)
     print(result["brief"])
