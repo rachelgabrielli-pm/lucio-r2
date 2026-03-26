@@ -13,7 +13,9 @@ Enter a WhatsApp number and click **RUN LUCIO**. The agent analyzes the portfoli
 
 The prototype runs fully in the cloud. No setup, no API keys (Application Programming Interface keys), no local installation needed.
 
-> **WhatsApp note:** Delivery requires the recipient's number to be registered on the Twilio sandbox first. Send `join [sandbox-word]` to +14155238886 on WhatsApp to activate. This is a sandbox limitation only — not a production constraint.
+> **WhatsApp sandbox limitation:** The prototype uses Twilio's free sandbox, which only delivers messages to numbers that have opted in manually. Before testing, the recipient must open WhatsApp, add **+1 415 523 8886** as a contact, and send the message `join [your-sandbox-word]` (find your exact word at console.twilio.com → Messaging → Try it out → Send a WhatsApp message).
+>
+> This opt-in is required for every new number. In production with a Twilio-approved account, any number receives messages without this step.
 
 **Repository:** [github.com/rachelgabrielli-pm/lucio-r2](https://github.com/rachelgabrielli-pm/lucio-r2)
 **Backend API (Application Programming Interface):** [lucio-r2-production.up.railway.app/health](https://lucio-r2-production.up.railway.app/health)
