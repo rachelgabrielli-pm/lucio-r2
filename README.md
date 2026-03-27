@@ -80,7 +80,6 @@ Step 1: Classify every merchant
 
 Step 2: Build the pre-credit ICP (Ideal Customer Profile)
          → Extracts what top performers looked like BEFORE credit
-         → The only output the partner can act on to change future behavior
 
 Step 3: Write the weekly digest
          → Combines Step 1 classification + Step 2 ICP
